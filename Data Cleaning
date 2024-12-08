@@ -1,0 +1,224 @@
+*
+Programmed by: Hunter D. Brooks
+Programmed on: 2024-10-21
+Programmed to: Showcase ability of data management
+
+Modified by: 
+Modified on: 
+Modified to: 
+;
+
+*Establish librefs and filerefs for incoming/outgoing files;
+x "cd L:\st445\Data\EPA TRI";
+libname InputDS "StructuredData";
+libname Formats "FormatCatalogs";
+filename RawData "RawData";
+
+x "cd S:\"; 
+libname Final ".";
+options fmtsearch=(Formats.formats);
+
+*reading in Events data;
+data Final.EventsReports;
+infile RawData ('EventReports2023.txt') dlm='';
+input  DateSigned yymmdd10.
+       NAICS $          11-16
+       CasNum    $    17-27
+       FormType  : $1.     
+       TRIFID    $ 33-47   
+       EntireFL   $ 48-50   
+       FederalFL   $ 51-53
+       ControlNum  :  $15.
+       ElementalFL  : $3.
+       Class    $ 72-77   
+       Units   $ 78-83  
+       HazAirFL $ 84-86
+        CarcFL $ 87-89
+        PfasFL  $ 90-92       
+       MetalFL $  93-95  
+       FugAirTotal 96-125
+       StackAirTotal :
+;
+run;
+
+*reading in facilities data;
+data Final.FacilitiesDemographics;
+infile RawData ('FacilityDemographics2023.txt') dlm='09'x truncover;
+input 
+         TRIFID $15.
+      #2 FacName $75.
+      #3 FacStreet $100.
+      #4 FacCity $ : FacState $2. FacZip $         
+      #5 FacCounty $50.
+      #6 BIAID $3. TribeName $100.
+      ;
+run;
+
+*reading in streams data;
+data Final.StreamsData;
+infile RawData ('StreamsData2023.txt') dsd dlm="09"x;
+length ControlNum $15 StreamA StreamB StreamC StreamD StreamE StreamF StreamG StreamH StreamI $75;
+length DischargeA DischargeB DischargeC DischargeD DischargeE DischargeF DischargeG DischargeH DischargeI 8;
+input ControlNum @; 
+
+array Stream[9] $75 StreamA StreamB StreamC StreamD StreamE StreamF StreamG StreamH StreamI;
+array Discharge[9] DischargeA DischargeB DischargeC DischargeD DischargeE DischargeF DischargeG DischargeH DischargeI;
+    do i = 1 to 9;
+    input Stream[i] $ Discharge[i];
+    end;
+    drop i;
+run;
+
+*sorting events data by controlnum to merge;
+proc sort data=Final.EventsReports              
+out=Final.EventsReportsSorted;
+by ControlNum;
+run;
+
+*sorting streams data by controlnum to merge;
+proc sort data=Final.Streamsdata
+out=Final.StreamsDataSorted;
+by ControlNum;          
+run;
+
+*merging events and streams by controlnum;
+data Final.FirstMerge;
+merge Final.EventsReportsSorted
+      Final.StreamsDataSorted;
+by ControlNum;
+
+run;
+
+*Sorting the first merge produced;
+proc sort data=Final.FirstMerge
+          out=Final.FirstMergeSorted;
+by TRIFID;
+run;
+
+*sorting facilities data;
+proc sort data=Final.FacilitiesDemographics
+          out=Final.FacilitiesDemographicsSorted;
+by TRIFID;
+run;
+
+*Creating second merge from the first merged dataset and the facilities data by trifid;
+data Final.SecondMerge;
+merge Final.FirstMergeSorted
+      Final.FacilitiesDemographics;
+by TRIFID;
+run;
+
+*Merging all data together;
+data Final.FP01BrooksHunterTRI;
+attrib ReportYear label='Report Year'
+       TRIFID label='TRI Federal ID' format=$15.
+       FacName label='Facility Name' format=$75.
+       FacStreet label='Facility Street' format=$100.
+       FacCity label='Facility City' format=$25.
+       FacCounty label='Facility County' format=$50.
+       FacState label='Facility State' format=$2.
+       FacZip label='Facility Zip' format=$9.
+       BIAID label='Bureau of Indian Affairs (BIA) code indicating the tribal land on which the facility is located' format=$3.
+       TribeName label='Name of the tribe on whose land the reporting facility is located' format=$100.
+       NAICS label='6-Digit NAICS Code' format=$6.
+       NAICSDescription label='Six-Digit NAICS Description' format=$150.
+       NAICS2 label='2-Digit NAICS Code' format=$2.
+       NAICS3 label='3-Digit NAICS Code' format=$3.
+       NAICS4 label='4-Digit NAICS Code' format=$4.
+       NAICS5 label='5-Digit NAICS Code' format=$5.
+       ControlNum label='Case Control #' format=$15.
+       FormType label='Reporting Form' format=$1.
+       DateSigned label='Form Signature Data' format=yymmdd10.
+       EntireFL label='Entire Facility Flag' format=$3.
+       FederalFL label='Federal Facility Flag' format=$3.
+       CasNum label='Chemical Abstract Service #' format=$15.
+       TRIChemID label='TRI Chemical ID' format=$15.
+       ElementalFL label='Combined Metal Report Flag' format=$3.
+       Class label='Chemical Classification' format=$6.
+       Units label='Units of Measure' format=$6.
+       HazAirFL label='Hazardous Air Pollutant Flag' format=$3.
+       CarcFL label='Carcinogen Flag' format=$3.
+       PFASFL label='PFAS Flag' format=$3.
+       MetalFL label='TRI Metal Flag' format=$3.
+       FugAirTotal label='Total Fugitive Air Emissions'
+       StackAirTotal label='Total Stack (Point Source) Air Emissions' 
+       AirTotal label='Total Air Emissions'
+       StreamA label='Stream A Name' format=$75.
+       DischargeA label='Stream A Discharge'
+       StreamB label='Stream B Name' format=$75.
+       DischargeB label='Stream B Discharge'
+       StreamC label='Stream C Name' format=$75.
+       DischargeC label='Stream C Discharge'
+       StreamD label='Stream D Name' format=$75.
+       DischargeD label='Stream D Discharge'
+       StreamE label='Stream E Name' format=$75.
+       DischargeE label='Stream E Discharge'
+       StreamF label='Stream F Name' format=$75.
+       DischargeF label='Stream F Discharge'
+       StreamG label='Stream G Name' format=$75.
+       DischargeG label='Stream G Discharge'
+       StreamH label='Stream H Name' format=$75.
+       DischargeH label='Stream H Discharge'
+       StreamI label='Stream I Name' format=$75.
+       DischargeI label='Stream I Discharge'
+       StreamCount label='# of Affected Streams'
+       DischargeTotal label='Total Discharge';
+set  Final.SecondMerge (in=n2023) 
+     inputds.tri2022 (in=n2022)  
+     inputds.tri2021 (in=n2021)
+     inputds.tri2020 (in=n2020)
+     inputds.tri2019 (in=n2019)
+     inputds.tri2018 (in=n2018);
+
+if n2023 eq 1 then ReportYear=2023;
+else if n2022 eq 1 then ReportYear=2022;
+else if n2021 eq 1 then ReportYear=2021;
+else if n2020 eq 1 then ReportYear=2020;
+else if n2019 eq 1 then ReportYear=2019;
+else ReportYear=2018;
+
+If CasNum = 'MIXTURE' or CasNum="TRD SECRET" or substr(CasNum,1,1)='N' then TRIChemID=CasNum; 
+else TRIChemID=put(input(compress(CasNum,,"KD"), Best10.), z10.);
+
+AirTotal=FugAirTotal+StackAirTotal;
+
+ARRAY Str[*] $ StreamA StreamB StreamC StreamD StreamE StreamF StreamG StreamH StreamI;
+StreamCount = 0;
+DO i = 1 to dim (Str) ;
+if not missing (Str[i]) then Streamcount=Streamcount + 1;
+END;
+
+ARRAY Dis[*] DischargeA DischargeB DischargeC DischargeD DischargeE DischargeF DischargeG DischargeH DischargeI;
+DischargeTotal = 0;
+DO i = 1 to dim (Dis) ;
+if not missing (Dis[i]) then DischargeTotal=DischargeTotal + Dis[i];
+END;
+
+array NAICSnums[4] $ NAICS2 NAICS3 NAICS4 NAICS5; 
+do i = 2 to 5;
+NAICSnums[i-1] = substr(NAICS, 1, i); 
+end;
+drop i;
+
+NAICSDescription=put(NAICS,NAICS.);
+
+run;
+
+*Creating first dataset of interest;
+proc sort data= Final.FP01BrooksHunterTRI (keep=Trifid FacState) out=Final.FP01BrooksFacilities nodupkey;
+by TRIFID;
+run;
+
+*Creating second dataset of interest;
+ods output crosstabfreqs=Final.FP01BrooksClassByHazAir (drop=Table _TABLE_ Missing Frequency) ;
+proc freq data= Final.FP01BrooksHunterTRI;
+table Class * HazAirFL / nofreq nocum nopercent ; 
+run;
+
+
+
+
+
+
+
+

@@ -1,0 +1,324 @@
+*
+Programmed by: Hunter D. Brooks
+Programmed on: 2024-10-21
+Programmed to: Showcase ability of data visualization
+
+Modified by: 
+Modified on: 
+Modified to: 
+;
+
+*Establish librefs and filerefs for incoming/outgoing files;
+
+x "cd L:\st445\Results\FinalProjectPhase1";
+libname InputDS ".";
+
+x "cd S:\"; 
+libname Final ".";
+
+*Macros;
+%let IdStamp = Output created by &SysUserID on &SysDate9 using &SysVLong;
+%let TitleOpts = height=14pt Bold;
+%let SubTitleOpts = height=10pt;
+%let FootOpts = height=8pt j=l italic ;
+
+ods _all_ close;
+ods  pdf file="FP02BrooksH.pdf" style=sapphire dpi=300;
+ods noproctitle;
+options nodate;
+ods pdf columns=2;
+footnote &FootOpts "&IdStamp";
+
+*Output 1;
+Title &SubTitleOpts "Output 1";
+Title2 &TitleOpts "Listing of Incidents Reported via Form R";
+Title3 &SubTitleOpts "Partial Output - Max of 25 Records for Federal Flag = Yes/No";
+
+proc print data=inputds.fp01dugginstri (obs=25 where=(FormType eq "R" AND FederalFL eq "YES")) noobs label ;
+  var Class HazAirFL CarcFL PFASFL;
+run;
+
+proc print data=inputds.fp01dugginstri (obs=25 where=(FormType eq "R" AND FederalFL eq "NO")) noobs label ;
+  var Class HazAirFL CarcFL PFASFL;
+run;
+
+Title;
+
+*Output 2;
+Title &SubTitleOpts "Output 2";
+Title2 &TitleOpts "Selected Summary Statistics of Total Air Pollution and Total Stream Discharge";
+
+ods exclude Quantiles ExtremeObs TestsForLocation;
+proc univariate data=inputds.fp01dugginstri;
+  var AirTotal DischargeTotal;
+run;
+
+Title;
+
+ods pdf columns=1;
+
+*Output 3;
+Title &SubTitleOpts "Output 3";
+Title2 &TitleOpts "Frequency-Ordered Summary of Facility Locations (State)";
+title3 &SubTitleOpts "Only Unique Locations Included";
+
+proc freq data=inputds.FP01dugginsfacilities order=Freq;
+  table FacState;
+run;
+
+title;
+
+*Output 4;
+Title &SubTitleOpts "Output 4";
+title2 &TitleOpts "Frequency-Ordered Summary of Facility Locations (State)";
+
+proc freq data=inputds.FP01dugginstri order=Freq;
+  table FacState;
+run;
+
+title;
+
+ods pdf startpage=no;
+
+*Output 5;
+Title &SubTitleOpts "Output 5";
+Title2 &TitleOpts "Frequency of Air Hazard Status for Each Chemical Classification";
+
+proc sgplot data=inputds.Fp01dugginsclassbyhazair;
+   vbar class /Response= RowPercent 
+               group=HazAirFL 
+               barwidth=.5
+               nooutline;
+   keylegend / Title="Air Hazard"
+               location=inside 
+               position=TopRight
+               across=1
+               OPAQUE;
+   xaxis label="Chemical Compound Classification";
+   yaxis label="% of Compound Classification" 
+               values=(0 to 100 by 10)
+               grid 
+               gridattrs = (color = gray88 thickness=.3);
+   Styleattrs datacolors=(BIGB VLIPB);
+run;
+
+Title;
+
+*Output 6;
+Title &SubTitleOpts "Output 6";
+Title2 &TitleOpts "Frequency of Chemical Classification within Air Hazard Status";
+
+proc sgplot data=inputds.Fp01dugginsclassbyhazair;
+    hbar HazAirFL/Response= ColPercent 
+                  groupdisplay=cluster 
+                  group=class
+                  datalabel
+                  datalabelattrs=(size=10pt color=grey)
+                  nooutline;
+    keylegend /   title="Classification" 
+                  location=inside
+                  position=BottomRight
+                  across=1
+                  Opaque;
+    xaxis         label='% of Air Hazard Status'
+                  values=(0 to 100 by 10)
+                  grid
+                  gridattrs = (color=grey thickness=.3);
+    yaxis         label="Air Hazard Status";
+    Styleattrs    datacolors=(LILG BIGB VLIPB);
+run;
+
+Title;
+
+*Output 7;
+Title &SubTitleOpts "Output 7";
+Title2 &TitleOpts "Comparative Boxplots for Air Pollution";
+Title3 &SubTitleOpts "For Mid-Atlantic* and Reference* States";
+Footnote2 &FootOpts "Mid-Atlantic: MD, VA, NC, SC";
+Footnote3 &FootOpts "Reference: CA, OH, NY, TX";
+
+proc sgplot data=inputds.Fp01dugginstri;
+  where upcase(FacState) in ('CA','MD','NC','NY','OH','SC','TX','VA');
+  Vbox AirTotal / group= FacState 
+                  grouporder=ascending;
+  keylegend     / title="State" 
+                  location=inside
+                  position=TopLeft
+                  across=1
+                  Opaque
+                  sortorder=ascending;
+  yaxis           label='Total Air Pollution';
+run;
+
+Title;
+Footnote2;
+
+ods pdf startpage=yes;
+
+*Output 8;
+Title &SubTitleOpts "Output 8";
+Title2 &TitleOpts "Analysis of Air Pollution and Stream Discharge";
+Title3 &SubTitleOpts "Limited to Chemicals Classified as PBT";
+Title4 &SubTitleOpts "Excluding 2020";
+
+proc report data=inputds.Fp01dugginstri;
+  column ReportYear HazAirFL CarcFL AirTotal,(mean std n) DischargeTotal, (mean std n);
+  where class eq "PBT" and ReportYear ne 2020;
+  define reportyear / Group descending ;
+  define HazAirFL / Group "HazAir" ;
+  define CarcFL / Group "Carc" ;
+  define AirTotal /  Analysis "Air Pollution";
+  define DischargeTotal /  Analysis "Stream Discharge";
+  define mean  / Format=6.1 "Mean";
+  define STD / "Std. Dev." format=8.2;
+  define n / "Count" format=comma.;
+  Break after ReportYear / Summarize;
+run;
+Title;
+
+*Output 9;
+Title &SubTitleOpts "Output 9";
+Title2 &TitleOpts "Analysis of Air Pollution and Stream Discharge";
+Title3 &SubTitleOpts "Limited to Chemicals Classified as PBT";
+Title4 &SubTitleOpts "Excluding 2020";
+Footnote2 &FootOpts "Alternative Display: Air Hazard displays on all non-summary rows";
+
+proc report data=inputds.Fp01dugginstri;
+  column ReportYear HazAirFL CarcFL AirTotal,(mean std n) DischargeTotal, (mean std n);
+  where class eq "PBT" and ReportYear ne 2020;
+  define reportyear / Group descending ;
+  define HazAirFL / Group "HazAir" ;
+  define CarcFL / Group "Carc" ;
+  define AirTotal /  Analysis "Air Pollution";
+  define DischargeTotal /  Analysis "Stream Discharge";
+  define mean  / Format=6.1 "Mean";
+  define STD / "Std. Dev." format=8.2;
+  define n / "Count" format=comma.;
+  Break after ReportYear / Summarize;
+
+compute before HazAirFL;
+ MyHazAirFL = HazAirFL;
+endcomp ;
+
+compute HazAirFL;
+if HazAirFL ne ' ' then MyHazAirFL = HazAirFL;
+  else if HazAirFL = ' ' and _break_ = ' ' then HazAirFL = MyHazAirFL;
+endcomp;
+
+  Break after ReportYear / Summarize;
+
+  run;
+
+Title;
+Footnote2;
+
+*Formatting;
+proc format;
+value AirPol (fuzz=0) 0= '#fee5d9'
+                      0<-25 = '#fcae91'
+                      25<-50 ='#fb6a4a'
+                      50<-100='#de2d26'
+                      100<-high = '#a50f15';
+value CarcFL (fuzz=0) 0= '#edf8fb'
+                      0<-40 = '#b2e2e2'
+                      40<-80 ='#66c2a4'
+                      80<-100='#2ca25f'
+                      100<-high = '#006d2c';
+run;
+
+*Output 10;
+Title &SubTitleOpts "Output 10";
+Title2 &TitleOpts "Color-Coded Analysis of Air Pollution and Stream Discharge";
+Title3 &SubTitleOpts "Limited to Chemicals Classified as PBT";
+Title4 &SubTitleOpts "Excluding 2020";
+
+
+proc report data=inputds.Fp01dugginstri;
+  column ReportYear HazAirFL CarcFL AirTotal,(mean std n) DischargeTotal, (mean std n);
+  where class eq "PBT" and ReportYear ne 2020;
+  define reportyear / Group descending ;
+  define HazAirFL / Group "HazAir" ;
+  define CarcFL / Group "Carc" ;
+  define AirTotal /  Analysis "Air Pollution";
+  define DischargeTotal /  Analysis "Stream Discharge";
+  define mean  / Format=6.1 "Mean";
+  define STD / "Std. Dev." format=8.2;
+  define n / "Count" format=comma.;
+  Break after ReportYear / Summarize;
+
+  compute before HazAirFL;
+    MyHazAirFL = HazAirFL;
+  endcomp ;
+
+  compute HazAirFL;
+    if HazAirFL ne ' ' then MyHazAirFL = HazAirFL;
+    else if HazAirFL = ' ' and _break_ = ' ' then HazAirFL = MyHazAirFL;
+  endcomp;
+
+  compute AirTotal;
+    if _break_ = '' then 
+    call define('_c4_', "style", "style=[backgroundcolor=AirPol.]");
+  endcomp;
+
+  Break after ReportYear / Summarize style=[Backgroundcolor=LIGGR];
+
+  compute after _page_ / style=[backgroundcolor = Black color=White just=r];
+    line 'Air Pollutant Color-Coding:0, <25, 25-50, 50-100, >10';
+  endcomp;
+
+run;
+
+Title;
+
+*Output 11;
+Title &SubTitleOpts "Output 11";
+Title2 &TitleOpts "Color-Coded* Analysis of Air Pollution and Stream Discharge";
+Title3 &SubTitleOpts "Limited to Chemicals Classified as PBT";
+Title4 &SubTitleOpts "Excluding 2020";
+footnote3 &FootOpts "*Rows with CarcFL=Y and CarcFL=N use their respective cutoffs. Summary rows use CarcFL=N cutoffs." ;
+
+proc report data=inputds.Fp01dugginstri;
+  column ReportYear HazAirFL CarcFL AirTotal,(mean std n) DischargeTotal, (mean std n);
+  where class eq "PBT" and ReportYear ne 2020;
+  define reportyear / Group descending ;
+  define HazAirFL / Group "HazAir" ;
+  define CarcFL / Group "Carc" ;
+  define AirTotal /  Analysis "Air Pollution";
+  define DischargeTotal /  Analysis "Stream Discharge";
+  define mean  / Format=6.1 "Mean";
+  define STD / "Std. Dev." format=8.2;
+  define n / "Count" format=comma.;
+  Break after ReportYear / Summarize;
+
+  compute before HazAirFL;
+    MyHazAirFL = HazAirFL;
+  endcomp ;
+
+  compute HazAirFL;
+    if HazAirFL ne ' ' then MyHazAirFL = HazAirFL;
+    else if HazAirFL = ' ' and _break_ = ' ' then HazAirFL = MyHazAirFL;
+  endcomp;
+
+  compute AirTotal;
+    if _break_ = '' & CarcFL = 'NO' 
+    then call define('_c4_', "style", "style=[backgroundcolor=AirPol.]");
+    if _break_ = '' & CarcFL = 'YES' 
+    then call define('_c4_', "style", "style=[backgroundcolor=CarcFL.]");
+    if _break_ = 'ReportYear' 
+    then call define('_c4_', "style", "style=[backgroundcolor=AirPol.]");
+  endcomp;
+
+  Break after ReportYear / Summarize style=[Backgroundcolor=LIGGR];
+
+  compute after _page_ / style=[backgroundcolor = Black color=White just=r];
+    line 'CarcFL=N coloring:0, <25, 25-50, 50-100, >100';
+    line 'CarcFL=Y coloring:0, <40, 40-80, 80-100, >100';
+  endcomp;
+
+run;
+
+Title;
+Footnote;
+ods pdf close;
+
+
